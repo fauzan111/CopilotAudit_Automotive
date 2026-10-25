@@ -9,10 +9,14 @@ pandas==2.2.3
 numpy==1.26.4
 mlflow==2.17.0
 
-# --- PII filter (Phase 1, reuses GDPR-Guardian stack) ---
+# --- PII filter (Phase 1) ---
+# Pattern-recognizer based, no spaCy/NLP engine dependency: the spaCy
+# tokenizer wheels available for Python 3.12 on Windows hit a binary
+# compatibility bug (OverflowError in spacy.tokenizer.Tokenizer._reset_cache)
+# on every model tested, including a blank pipeline. Presidio's
+# PatternRecognizer + AnonymizerEngine run standalone without it.
 presidio-analyzer==2.2.355
 presidio-anonymizer==2.2.355
-spacy==3.8.2
 
 # --- RAG layer (Phase 3) ---
 psycopg[binary]==3.2.3
