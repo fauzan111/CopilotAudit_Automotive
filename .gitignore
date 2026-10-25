@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+data/raw/*
+data/processed/*
+data/synthetic/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/synthetic/.gitkeep
+mlruns/
+*.log
+.pytest_cache/
+.DS_Store
