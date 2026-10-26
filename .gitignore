@@ -13,3 +13,4 @@ mlruns/
 *.log
 .pytest_cache/
 .DS_Store
+.gstack/
