@@ -6,9 +6,9 @@ pydantic==2.9.2
 xgboost==2.1.1
 scikit-learn==1.5.2
 pandas==2.2.3
-numpy==1.26.4
-mlflow==2.17.0
-scipy==1.14.1
+numpy==2.5.4
+mlflow==2.22.5
+scipy==1.17.1
 
 # --- PII filter (Phase 1) ---
 # Pattern-recognizer based, no spaCy/NLP engine dependency: the spaCy
@@ -16,26 +16,47 @@ scipy==1.14.1
 # compatibility bug (OverflowError in spacy.tokenizer.Tokenizer._reset_cache)
 # on every model tested, including a blank pipeline. Presidio's
 # PatternRecognizer + AnonymizerEngine run standalone without it.
+#
+# spacy/thinc are still installed below, not because we use them (we
+# don't), but because presidio_analyzer unconditionally imports
+# spacy.tokens at import time, it's a hard dependency of the package
+# itself, not an optional NLP backend. Pinned to >=3.8 specifically
+# because numpy 2.x (needed by onnx/fastembed in Phase 3) requires a
+# thinc build with numpy-2 support, which only landed in spacy 3.8+.
 presidio-analyzer==2.2.355
 presidio-anonymizer==2.2.355
+spacy>=3.8
 
 # --- RAG layer (Phase 3) ---
 psycopg[binary]==3.2.3
 pgvector==0.3.6
 langgraph==0.2.45
-langchain==0.3.7
-langchain-community==0.3.5
-# sentence-transformers==3.2.1
-# ^ intentionally commented out, not pinned-but-unused. It pulls in torch,
-# whose c10.dll fails to initialize (OSError: WinError 1114) in this
-# Python 3.12/Windows environment whenever it shares a process with
-# xgboost/scipy's native libraries, e.g. running the full pytest suite.
-# Confirmed by uninstalling it: all tests pass clean without it. When
-# Phase 3 actually needs embeddings, re-add it then and re-test the full
-# suite together before assuming it's fine, this environment has a pattern
-# of native-library conflicts (see src/pii/filter.py's spaCy note) and a
-# non-torch embedding option (e.g. an API-based embedding call, or a
-# lighter ONNX-based encoder) may be the more reliable path here.
+langchain-ollama==0.2.0
+# fastembed, not sentence-transformers: ONNX Runtime based, no torch
+# dependency, avoiding the c10.dll native-library conflict that affected
+# Phase 1/2. Keeps embeddings fully local/self-hosted too, consistent with
+# this project's own compliance story rather than calling an external
+# embedding API.
+fastembed==0.4.2
+# protobuf pinned >=6.31.1: onnx (via fastembed) requires it. mlflow was
+# bumped to 2.22.5 specifically because mlflow 2.17's mlflow-skinny pinned
+# protobuf<6, directly conflicting with onnx's floor. Both onnx and mlflow
+# are genuinely used (embeddings, experiment tracking), this isn't a
+# drop-the-unused-one fix like sentence-transformers/langchain were.
+protobuf>=6.31.1
+# langchain and langchain-community were removed: neither langgraph nor
+# langchain-ollama actually requires them (both depend only on
+# langchain-core, which has no numpy constraint at all), and the full
+# langchain/langchain-community packages pin numpy<2.0, which directly
+# conflicts with onnx's numpy>=2.0 floor. Same unused-speculative-dependency
+# pattern as sentence-transformers, added in Phase 0 before any RAG code
+# existed, never actually imported.
+#
+# LLM generation runs through a local Ollama instance (llama3.2, already
+# pulled), not an external API, for the same data-locality reason as the
+# embedding model choice. Ollama's default context window for this model
+# attempts to allocate ~14GB of KV cache and fails outright on this
+# machine; src/rag/agent.py explicitly bounds num_ctx to 4096.
 
 # --- API layer (Phase 6) ---
 fastapi==0.115.4
@@ -44,3 +65,11 @@ uvicorn[standard]==0.32.0
 # --- dev/test ---
 pytest==8.3.3
 httpx==0.27.2
+
+# --- Windows note ---
+# mlflow's console output includes unicode emoji (e.g. the running-person
+# icon on a logged run URL). This Windows environment's default stdout
+# codec (cp1252) can't encode them and crashes with UnicodeEncodeError
+# after the run has already completed and logged successfully, the crash
+# is cosmetic, not a correctness issue. Run scripts that use mlflow with
+# PYTHONIOENCODING=utf-8 set (see README "Running locally").

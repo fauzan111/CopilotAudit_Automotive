@@ -51,12 +51,10 @@ FastAPI service
 
 ## Status
 
-Early scaffold. See the phase plan below.
-
-- [ ] Phase 0: project setup
-- [ ] Phase 1: data layer + PII filter
-- [ ] Phase 2: forecasting layer
-- [ ] Phase 3: RAG layer
+- [x] Phase 0: project setup
+- [x] Phase 1: data layer + PII filter
+- [x] Phase 2: forecasting layer
+- [x] Phase 3: RAG layer
 - [ ] Phase 4: guardrail/decision layer
 - [ ] Phase 5: compliance/audit layer
 - [ ] Phase 6: service layer + packaging
@@ -70,4 +68,19 @@ cp .env.example .env         # already done if you're reading this from the repo
 python -m venv .venv
 .venv/Scripts/activate        # Windows
 pip install -r requirements.txt
+
+# NASA battery data and DTC reference docs (gitignored, fetch/build first)
+./scripts/download_nasa_battery_data.sh
+python scripts/extract_battery_features.py
+python scripts/seed_dtc_reference.py
+python scripts/embed_dtc_reference.py   # requires Ollama for the generation step, see below
+
+# Ollama, for local LLM generation (RAG layer)
+ollama serve                 # if not already running as a service
+ollama pull llama3.2         # one-time, ~2GB
+
+# Windows only: mlflow prints unicode in run-completion messages that this
+# platform's default console codec can't encode. The crash happens after
+# the run already logged successfully, cosmetic, but avoid it with:
+export PYTHONIOENCODING=utf-8   # or set it before any script that uses mlflow
 ```
