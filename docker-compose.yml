@@ -22,11 +22,47 @@ services:
     image: ghcr.io/mlflow/mlflow:v2.17.0
     container_name: copilotaudit_mlflow
     restart: unless-stopped
-    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlflow/mlruns --default-artifact-root /mlflow/mlruns
+    # default-artifact-root is deliberately the mlflow-artifacts:/ proxy scheme, not a
+    # bare local path. A bare path (e.g. /mlflow/mlruns) makes EVERY client, including
+    # ones on a different machine/container than the server, resolve artifacts against
+    # their OWN local filesystem instead of fetching them over HTTP from this server,
+    # which silently "works" for whichever client happens to be colocated with the
+    # server (or, as happened here, whichever client first wrote the artifact to its own
+    # disk) and breaks for every other client. Caught when the Phase 6 api container
+    # tried to load the Phase 2 model and got OSError: No such file or directory, even
+    # though mlflow.xgboost.load_model() worked fine from the host the whole time, see
+    # README's "Known environment gotchas" section.
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlflow/mlruns --default-artifact-root mlflow-artifacts:/ --artifacts-destination /mlflow/mlruns
     ports:
       - "5000:5000"
     volumes:
       - mlflowdata:/mlflow/mlruns
+
+  api:
+    build: .
+    container_name: copilotaudit_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      mlflow:
+        condition: service_started
+    environment:
+      # db/mlflow are reached by their compose service name on the internal
+      # network, not localhost, that's only valid for host-based (non-Docker)
+      # runs. Ollama stays on the host (GPU access, not containerized), so it's
+      # reached via host.docker.internal instead, see src/rag/agent.py and
+      # src/guardrail/faithfulness.py's OLLAMA_BASE_URL handling.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-copilotaudit}:${POSTGRES_PASSWORD:-copilotaudit}@db:5432/${POSTGRES_DB:-copilotaudit}
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      AUDIT_LOG_RETENTION_DAYS: ${AUDIT_LOG_RETENTION_DAYS:-180}
+    extra_hosts:
+      # host.docker.internal resolves automatically on Docker Desktop
+      # (Windows/Mac); this mapping is what makes it resolve on Linux too.
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
 
 volumes:
   pgdata:

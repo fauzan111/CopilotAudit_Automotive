@@ -1,0 +1,13 @@
+.venv/
+.git/
+.gstack/
+.claude/
+.pytest_cache/
+__pycache__/
+*.pyc
+data/
+notebooks/
+tests/
+mlruns/
+.env
+.env.example

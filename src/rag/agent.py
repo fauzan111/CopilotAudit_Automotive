@@ -16,6 +16,7 @@ than this use case (a handful of short DTC docs plus one question) needs.
 
 from __future__ import annotations
 
+import os
 from typing import TypedDict
 
 from langchain_ollama import ChatOllama
@@ -25,6 +26,11 @@ from src.rag.retrieval import HybridRetriever, RetrievedDoc
 
 OLLAMA_MODEL = "llama3.2"
 OLLAMA_NUM_CTX = 4096
+# None keeps ChatOllama's own localhost default; set to http://host.docker.internal:11434
+# when this code runs inside the Docker api service, since Ollama itself stays on the
+# host (GPU access, not containerized). src.rag.retrieval's load_dotenv() import above
+# has already run by the time this module-level line executes.
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL")
 
 SYSTEM_PROMPT = (
     "You are a diagnostic assistant for automotive technicians. Answer only "
@@ -49,7 +55,7 @@ def _format_context(docs: list[RetrievedDoc]) -> str:
 class DiagnosticAgent:
     def __init__(self) -> None:
         self._retriever = HybridRetriever()
-        self._llm = ChatOllama(model=OLLAMA_MODEL, num_ctx=OLLAMA_NUM_CTX, temperature=0.1)
+        self._llm = ChatOllama(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL, num_ctx=OLLAMA_NUM_CTX, temperature=0.1)
         self._graph = self._build_graph()
 
     def _retrieve_node(self, state: AgentState) -> AgentState:

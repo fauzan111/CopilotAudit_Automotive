@@ -46,6 +46,7 @@ for in-domain questions.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 
@@ -55,6 +56,9 @@ from src.rag.retrieval import RetrievedDoc
 
 OLLAMA_MODEL = "llama3.2"
 OLLAMA_NUM_CTX = 4096
+# See src/rag/agent.py's identical OLLAMA_BASE_URL comment: None keeps ChatOllama's
+# localhost default, set to host.docker.internal only when running in the api container.
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL")
 
 STATEMENT_SPLIT_PATTERN = re.compile(r"(?<=[.!?])\s+")
 LIST_MARKER_PATTERN = re.compile(r"^\s*(?:\d+[.)]|[-*•])\s*")
@@ -153,7 +157,7 @@ def split_into_statements(answer: str) -> list[str]:
 
 class FaithfulnessJudge:
     def __init__(self) -> None:
-        self._llm = ChatOllama(model=OLLAMA_MODEL, num_ctx=OLLAMA_NUM_CTX, temperature=0.0)
+        self._llm = ChatOllama(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL, num_ctx=OLLAMA_NUM_CTX, temperature=0.0)
 
     def _check_statement(self, statement: str, context: str) -> StatementCheck:
         # Lexical fast path, checked before calling the LLM at all: if the

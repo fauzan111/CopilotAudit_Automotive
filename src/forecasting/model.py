@@ -122,6 +122,36 @@ def train(
     return model, metrics
 
 
+def load_latest_model(experiment_name: str = "battery_degradation_forecaster") -> xgb.XGBRegressor:
+    """Load the most recently trained model straight from MLflow's tracking
+    server, rather than a separately saved local file. MLflow is already
+    this project's system of record for trained models (train() logs every
+    run via mlflow.xgboost.log_model), a second on-disk copy would just be
+    one more place for the "live" model and the actually-served model to
+    drift apart.
+
+    Requires the mlflow server to be running with a proxied artifact root
+    (mlflow-artifacts:/, not a bare local path): otherwise this only works
+    when called from whatever machine happened to train the model, and
+    fails with OSError everywhere else, see README's "Known environment
+    gotchas".
+    """
+    client = mlflow.tracking.MlflowClient()
+    experiment = client.get_experiment_by_name(experiment_name)
+    if experiment is None:
+        raise RuntimeError(
+            f"No MLflow experiment named {experiment_name!r} found. Run training first: "
+            "python -m src.forecasting.model"
+        )
+
+    runs = client.search_runs([experiment.experiment_id], order_by=["start_time DESC"], max_results=1)
+    if not runs:
+        raise RuntimeError(f"No runs logged under {experiment_name!r} yet. Run training first.")
+
+    run_id = runs[0].info.run_id
+    return mlflow.xgboost.load_model(f"runs:/{run_id}/model")
+
+
 if __name__ == "__main__":
     model, metrics = train()
     print(f"Holdout battery: {HOLDOUT_BATTERY}")

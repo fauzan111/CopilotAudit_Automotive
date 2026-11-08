@@ -25,7 +25,7 @@ load_dotenv()
 DATABASE_URL = os.environ["DATABASE_URL"]
 
 
-def _fetch_registry() -> list[dict]:
+def fetch_registry() -> list[dict]:
     with psycopg.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -67,7 +67,7 @@ def generate_report() -> str:
     rather than requiring a separate file-writing entry point.
     """
     chain_valid, chain_reason = verify_chain()
-    registry = _fetch_registry()
+    registry = fetch_registry()
     interactions = _fetch_interactions()
     generated_at = datetime.now(timezone.utc).isoformat()
 
