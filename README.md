@@ -16,6 +16,37 @@ infrastructure:
    audit-ready reports can be generated on demand. Logs are stored in a self-hosted
    Postgres instance, not a vendor's cloud.
 
+## Results
+
+Concrete numbers, not claims:
+
+- **Forecasting**: XGBoost model predicting battery capacity fade, evaluated with a
+  group holdout (an entire battery, B0018, held out of training rather than a random
+  row split, which would leak later cycles of a battery the model has already partly
+  seen). MAE 2.069 percentage points, RMSE 2.637, R2 0.899.
+- **Retrieval**: hybrid dense (pgvector cosine) + sparse (Postgres full-text) search,
+  fused with Reciprocal Rank Fusion. An exact DTC code match scores roughly 2x higher
+  than a semantic-only match, confirming both retrieval signals actually contribute
+  rather than one dominating silently.
+- **Guardrail**: a from-scratch RAGAS-style faithfulness judge (split the answer into
+  statements, verify each against the retrieved docs separately) that correctly blocks
+  a fabricated answer (a fake torque spec and a made-up success percentage) while
+  passing a genuinely grounded multi-sentence answer. Three real reliability failures
+  in the local 3B model were found and fixed during adversarial testing, not assumed
+  away: entailment-direction confusion, list-item context loss, and unreliable
+  verbatim-match judgment (fixed with a lexical fast path). Both adversarial cases are
+  permanent regression tests.
+- **Compliance**: an append-only, hash-chained audit log where every row commits to
+  its own content plus the previous row's hash. Adversarially tested by tampering with
+  a row's content directly via SQL, and separately by deleting a row out from under
+  its successor, confirming `verify_chain()` catches both failure modes, not just that
+  it passes on clean data.
+- **Testing discipline**: 37/37 tests passing across all six phases, run as real
+  integration tests against live Postgres, Ollama, and MLflow rather than mocks. The
+  Phase 6 Docker image was actually run as a container and hit over HTTP, which is how
+  a real MLflow artifact-resolution bug (see "Known environment gotchas" below) got
+  caught before it could ship.
+
 ## Why both in one repo
 
 A PII-stripping filter and a provenance-logging layer aren't two separate compliance
@@ -23,6 +54,25 @@ features, they're the same discipline applied to input and output. Building them
 and wiring both the forecaster and the RAG assistant through them is both the efficient
 engineering choice and the more honest demonstration of what "defensible AI deployment"
 actually requires in practice, not a bolted-on policy document.
+
+## Why this project is shaped this way
+
+This repo was built with two concrete, currently-active parts of Italy's automotive/AI
+scene in mind, not as an abstract portfolio exercise.
+
+Stellantis runs its R&D center, CRF (Centro Ricerche Fiat), out of Orbassano near
+Turin, and CRF partners with AI4I (Italy's national AI institute) on automotive AI
+research. The diagnostic-copilot half of this project, RAG-grounded fault diagnosis
+plus degradation forecasting, is the applied ML work that kind of partnership
+actually produces: a model that has to be right, explainable, and safe to hand to a
+technician, not a demo.
+
+AI4I's AI Security (AIS) Lab, also in Turin, works on making AI systems auditable and
+verifiable. The compliance layer here, hash-chained logs, EU AI Act risk
+classification, audit-ready reporting, exists because that is what "defensible AI
+deployment" concretely requires, independent of who ends up reading this README. The
+overlap with AIS Lab's stated focus is real, but the audit log would be built the same
+way even if nobody from AI4I ever saw it.
 
 ## Architecture
 
@@ -58,7 +108,7 @@ FastAPI service
 - [x] Phase 4: guardrail/decision layer
 - [x] Phase 5: compliance/audit layer
 - [x] Phase 6: service layer + packaging
-- [ ] Phase 7: documentation and framing
+- [x] Phase 7: documentation and framing
 
 ## Running locally
 
