@@ -52,7 +52,11 @@ CREATE TABLE IF NOT EXISTS audit_log (
     faithfulness_score      NUMERIC,
     decision                TEXT,              -- 'answered' | 'escalated' | 'blocked'
     risk_tier               TEXT,              -- EU AI Act: 'minimal' | 'limited' | 'high_risk'
-    created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    row_hash                TEXT,              -- sha256(canonical row fields + prev_hash)
+    prev_hash               TEXT               -- row_hash of the chain's previous entry; makes the
+                                                 -- log tamper-evident: altering any row, or deleting
+                                                 -- one from the middle, breaks every hash after it.
 );
 
 CREATE INDEX IF NOT EXISTS audit_log_interaction_idx ON audit_log (interaction_id);

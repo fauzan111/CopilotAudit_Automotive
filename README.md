@@ -55,8 +55,8 @@ FastAPI service
 - [x] Phase 1: data layer + PII filter
 - [x] Phase 2: forecasting layer
 - [x] Phase 3: RAG layer
-- [ ] Phase 4: guardrail/decision layer
-- [ ] Phase 5: compliance/audit layer
+- [x] Phase 4: guardrail/decision layer
+- [x] Phase 5: compliance/audit layer
 - [ ] Phase 6: service layer + packaging
 - [ ] Phase 7: documentation and framing
 
@@ -83,4 +83,28 @@ ollama pull llama3.2         # one-time, ~2GB
 # platform's default console codec can't encode. The crash happens after
 # the run already logged successfully, cosmetic, but avoid it with:
 export PYTHONIOENCODING=utf-8   # or set it before any script that uses mlflow
+
+# Compliance layer (Phase 5)
+python -m src.compliance.risk_registry   # populate ai_system_registry (idempotent)
+python -m src.compliance.report          # print a full audit-ready compliance report
 ```
+
+## Compliance layer
+
+`src/compliance/audit_log.py` writes an append-only, hash-chained log of every
+query/retrieval/generation/guardrail step (`AuditLogger`), and `verify_chain()`
+walks the whole table confirming no row was altered after the fact, each row's
+hash commits to its own content plus the previous row's hash, so tampering with
+any row, or deleting one from the middle, breaks every hash after it. This was
+adversarially tested, not just run once: rows were tampered with directly via
+SQL and confirmed caught by `verify_chain()`, see `tests/test_compliance.py`.
+
+`src/compliance/pipeline.py`'s `AuditedDiagnosticPipeline` wraps the Phase 4
+guardrail pipeline and logs the full provenance trail for every interaction.
+`src/compliance/risk_registry.py` records each AI component's EU AI Act risk
+tier with its actual Annex III reasoning, not just a label. `src/compliance/
+report.py` turns both into a single audit-ready markdown report.
+`src/compliance/retention.py` reports rows past the Article 12 minimum
+retention window, it deliberately does not auto-delete anything, see its
+module docstring for why that would conflict with the hash chain's
+tamper-evidence guarantee.
